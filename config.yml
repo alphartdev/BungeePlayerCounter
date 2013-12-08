@@ -1,0 +1,8 @@
+# Bungee Player Counter configuration file
+name: nameoflobby
+enableServerIndicator: true
+display: 
+  mode: automatic
+  items:
+    name:
+    displayName: "&bHungerGames"
