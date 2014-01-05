@@ -1,8 +1,15 @@
 name: BungeePlayerCounter
 author: Alphart
-version: 1.1.2
+version: 1.2.1
 main: fr.Alphart.BungeePlayerCounter.BPC
 permissions:
     bungeeplayercounter.display:
         description: Display the scoreboard
         default: op
+    bungeeplayercounter.reload:
+        description: Reload the plugin
+        default: op
+commands:
+  bpc:
+    description: Main command of the plug !
+    usage: /<command>   

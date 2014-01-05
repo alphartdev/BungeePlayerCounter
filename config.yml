@@ -1,8 +1,29 @@
 # Bungee Player Counter configuration file
-name: nameoflobby
+# Permission: "bungeeplayercounter.display" display the scoreboard || "bungeeplayercounter.reload" reload the plugin's config
+# Command: "/bpc reload" : reload the plugin
+# ----------------------------------------
+# <!> Coloured names are supported but you must put your text in quote !
+# Configuration :
+# name: name displayed at the top of the scoreboard (%totalplayercount% will be replaced by the total player count in your bungee instance)
+# enableServerIndicator: enable the highlight of your current server
+# interval: interval between player count update in seconds
+# automaticDisplay: automatically display all servers of Bungee (16 servers max), in opposition with manual display
+# <!> For manual display (set automaticDisplay to false), 16 groups max can be displayed in the scoreboard :
+# groups:
+#   groupName:
+#     displayName: name displayed in the SB (16 chars max)
+#     servers: server(s) name separated by a '+'(Grouped player counts)
+#     display: enable display of this group
+name: "&6NameOfNetwork &7&L(%totalplayercount%)"
 enableServerIndicator: true
-display: 
-  mode: automatic
-  items:
-    name:
-    displayName: "&bHungerGames"
+interval: 5
+automaticDisplay: true
+groups:
+    lobby:
+        displayName: "&eLobby"
+        servers: lobby
+        display: true
+    hungergames:
+        displayName: "&BHungerGames"
+        servers: hg1+hg2+hg3
+        display: true
