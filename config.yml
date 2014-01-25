@@ -14,6 +14,7 @@
 #     displayName: name displayed in the SB (16 chars max)
 #     servers: server(s) name separated by a '+'(Grouped player counts)
 #     display: enable display of this group
+# datasource: source used to get player count : "default" or "redis" || Let default value if you don't know or don't use Redis
 name: "&6NameOfNetwork &7&L(%totalplayercount%)"
 enableServerIndicator: true
 interval: 5
@@ -27,3 +28,4 @@ groups:
         displayName: "&BHungerGames"
         servers: hg1+hg2+hg3
         display: true
+datasource: default

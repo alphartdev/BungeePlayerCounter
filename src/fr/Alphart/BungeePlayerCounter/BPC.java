@@ -25,6 +25,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.messaging.PluginMessageListener;
 import org.bukkit.scoreboard.DisplaySlot;
@@ -37,27 +38,32 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 	private String currentServer;
 	private Group currentGroup;
 	private List<String> serversList;
+	private String channel; // Channel use for plugin message system only PlayerCount (can be bungee or redis)
+	// For other message, the BungeeCord channel will be used
 	private Scoreboard SB;
 	// ** Config variable
 	private String networkName;
 	private Boolean serverIndicator;
 	private Boolean automaticDisplay;
 	private Integer updateInterval;
+	// Constant
+	private final String MD_TOGGLE = "BPC_toggled";
 	// Manual display related : Associate a server's name to his group
 	private Map<String, Group> serversGroups;
 	// ** Perm
 	private String DISPLAY_PERM = "bungeeplayercounter.display";
 	private String RELOAD_PERM = "bungeeplayercounter.reload";
-	
+	private String TOGGLE_PERM = "bungeeplayercounter.toggle";
+
 	public void onEnable(){
 		BPC.instance = this;
-        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
-        getServer().getMessenger().registerIncomingPluginChannel(this, "BungeeCord", this);
         getServer().getPluginManager().registerEvents(this, this);
         getCommand("bpc").setExecutor(this);
         saveDefConfig();
         loadConfig();
-		initScoreboard();		
+        getServer().getMessenger().registerOutgoingPluginChannel(this, "BungeeCord");
+        getServer().getMessenger().registerIncomingPluginChannel(this, "BungeeCord", this);
+		initScoreboard();
 	}
 	
 	public void reload(){
@@ -67,7 +73,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 		loadConfig();
 		initScoreboard();
 		
-		// Try to init the system now (almost same code that in PlayerJoinEvent except the scheduler)
+		// Try to init the system now (almost same code that in PlayerJoinEvent except the scheduler) because there may be online player
 		if(serversList.isEmpty() || (serverIndicator && currentServer == null)){
 			try {
 				final Player p = Bukkit.getOnlinePlayers()[0];
@@ -90,6 +96,10 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 				}
 				for(byte[] message : plugMessage)
 					p.sendPluginMessage(BPC.getInstance(), "BungeeCord", message);
+				for(Player players : Bukkit.getOnlinePlayers()){
+					if(players.hasPermission(DISPLAY_PERM))
+						players.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard()      );
+				}
 			} catch (IOException exception) {
 				getLogger().severe("Error during message sending. ErrorCode: 1");
 				exception.printStackTrace();
@@ -103,6 +113,9 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 			saveResource("config.yml", true);
 			reloadConfig();
 		}
+		
+		//Update the config
+		
 		if(!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("groups")){
 			getLogger().info("Config file's update in progress ...");
 			// Save the userData
@@ -114,9 +127,14 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 			reloadConfig();
 			getConfig().set("name", networkName + "  &7&L(%totalplayercount%)");
 			getConfig().set("enableServerIndicator", serverIndicator);
-			saveConfig();
+		}else if(!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("datasource")){
+			getLogger().info("Config file's update in progress ...");
+			getConfig().set("datasource", "default");
+			getConfig().options().header(getConfig().options().header() + " \n datasource: source used to get player count : \"default\" or \"redis\" "
+					+ "|| Let default value if you don't know or don't use Redis");
 		}
-		reloadConfig();
+
+		saveConfig();
 	}
 	public void loadConfig(){
 		// Get some config vars
@@ -124,6 +142,24 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 		serverIndicator = getConfig().getBoolean("enableServerIndicator");
 		automaticDisplay = getConfig().getBoolean("automaticDisplay");
 		updateInterval = getConfig().getInt("interval");
+		switch(getConfig().getString("datasource")){
+			case "default":
+				channel = "BungeeCord";
+				break;
+			case "redis":
+				channel = "RedisBungee";
+				if(!getServer().getMessenger().isIncomingChannelRegistered(this, channel))
+			        getServer().getMessenger().registerIncomingPluginChannel(this, channel, this);
+				if(!getServer().getMessenger().isOutgoingChannelRegistered(this, channel))
+					getServer().getMessenger().registerOutgoingPluginChannel(this, channel);
+
+				break;
+			default:
+				channel = "BungeeCord";
+				getConfig().set("datasource", "default");
+				saveConfig();
+				break;
+		}
 		
 		// Init some objects
 		serversList = new ArrayList<String>();
@@ -170,7 +206,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 	}	
 	public void updateSB(){
 		for(Player p : Bukkit.getOnlinePlayers())
-    		if(p.hasPermission(DISPLAY_PERM))
+    		if(p.hasPermission(DISPLAY_PERM) && !p.hasMetadata(MD_TOGGLE))
 				p.setScoreboard(SB);
 	}
 	
@@ -204,7 +240,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 						DataOutputStream out = new DataOutputStream(b);
 						out.writeUTF("PlayerCount");
 						out.writeUTF(server);
-						p.sendPluginMessage(BPC.getInstance(), "BungeeCord", b.toByteArray());
+						p.sendPluginMessage(BPC.getInstance(), channel, b.toByteArray());
 					}
 					
 					// Get player count for the full network
@@ -212,7 +248,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					DataOutputStream out = new DataOutputStream(b);
 					out.writeUTF("PlayerCount");
 					out.writeUTF("ALL");
-					p.sendPluginMessage(BPC.getInstance(), "BungeeCord", b.toByteArray());
+					p.sendPluginMessage(BPC.getInstance(), channel, b.toByteArray());
 				} catch (IOException e) {
 					e.printStackTrace();
 					getLogger().severe("Error during message sending. ErrorCode: 2");
@@ -370,19 +406,42 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
     			Bukkit.getScheduler().runTaskLater(this, new Runnable(){
     				@Override
 					public void run() {
-						p.setScoreboard(SB);
+    					if(!p.hasMetadata(MD_TOGGLE))
+    						p.setScoreboard(SB);
 					}		
     			}, 2L);
 		}
 	}
 
+	public void toggle(Player player){
+		// Toggle on
+		if(player.hasMetadata(MD_TOGGLE)){
+			player.removeMetadata(MD_TOGGLE, this);
+			player.setScoreboard(SB);
+		}
+		// Toggle off
+		else{
+			player.setMetadata(MD_TOGGLE, new FixedMetadataValue(this, "off"));
+			player.setScoreboard(Bukkit.getScoreboardManager().getNewScoreboard());
+		}
+	}
+	
 	@Override
 	public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-		if (args.length == 1 && args[0].equalsIgnoreCase("reload") && sender.hasPermission(RELOAD_PERM)) {
-			reload();
+		if (args.length == 1) {
+			if(args[0].equalsIgnoreCase("reload") && sender.hasPermission(RELOAD_PERM))
+				reload();
+			else if(args[0].equalsIgnoreCase("toggle") && sender.hasPermission(TOGGLE_PERM) && sender.hasPermission(DISPLAY_PERM)){
+				if(sender instanceof Player){
+					toggle((Player)sender);
+					sender.sendMessage(ChatColor.YELLOW+ "[BPC] Scoreboard toggled !");
+				}
+				else
+					sender.sendMessage(ChatColor.YELLOW+ "[BPC] You must be a player to use this command !");
+			}
 		}
 		else
-			sender.sendMessage(ChatColor.YELLOW+ "[BPC] Invalid command !");
+			sender.sendMessage(ChatColor.YELLOW+ "[BPC] Invalid command or insufficient permission !");
 		return true;
 	}
 }
