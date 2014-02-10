@@ -1,6 +1,6 @@
 name: BungeePlayerCounter
 author: Alphart
-version: 1.2.2
+version: ${project.version}
 main: fr.Alphart.BungeePlayerCounter.BPC
 permissions:
     bungeeplayercounter.display:
