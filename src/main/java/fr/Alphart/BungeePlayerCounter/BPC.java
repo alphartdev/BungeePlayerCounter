@@ -197,12 +197,13 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 			}
 		}
 	}
-
 	
 	public void initScoreboard() {
-		SB = Bukkit.getScoreboardManager().getNewScoreboard();
-		Objective objective = SB.registerNewObjective("playercounter", "dummy");
-		objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+		SB = Bukkit.getScoreboardManager().getMainScoreboard();
+		if(SB.getObjective("playercounter") == null){
+			Objective objective = SB.registerNewObjective("playercounter", "dummy");
+			objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+		}
 	}	
 	public void updateSB(){
 		for(Player p : Bukkit.getOnlinePlayers())
