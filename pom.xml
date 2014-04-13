@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.Alphart</groupId>
 	<artifactId>BungeePlayerCounter</artifactId>
-	<version>1.2.2</version>
+	<version>1.3</version>
 	<name>BungeePlayerCounter</name>
 
 	<properties>
@@ -35,6 +35,7 @@
 				<filtering>true</filtering>
 				<includes>
 					<include>plugin.yml</include>
+					<include>config.yml</include>
 				</includes>
 			</resource>
 		</resources>

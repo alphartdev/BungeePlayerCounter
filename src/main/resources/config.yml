@@ -14,7 +14,9 @@
 #     displayName: name displayed in the SB (16 chars max)
 #     servers: server(s) name separated by a '+'(Grouped player counts)
 #     display: enable display of this group
+#     address: address used to check the state of the server, set to "" to disable it
 # datasource: source used to get player count : "default" or "redis" || Let default value if you don't know or don't use Redis
+# offlinePrefix: string that will prefix the server name when it's offline (16 chars max) <!>Status checking ONLY works with manualdisplay<!>
 name: "&6NameOfNetwork &7&L(%totalplayercount%)"
 enableServerIndicator: true
 interval: 5
@@ -29,3 +31,4 @@ groups:
         servers: hg1+hg2+hg3
         display: true
 datasource: default
+offlinePrefix: "&c[OFFLINE]"
