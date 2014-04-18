@@ -19,7 +19,6 @@ import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -44,11 +43,13 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 	private List<String> serversList;
 	private String channel; // Channel use for plugin message system only
 							// PlayerCount (can be bungee or redis)
+	private int maxPlayers = -1;
 	// For other message, the BungeeCord channel will be used
 	private Scoreboard SB;
 	// ** Config variable
 	private String networkName;
-	private Boolean serverIndicator;
+	private Boolean serverIndicatorEnabled;
+	private String serverIndicator;
 	private Boolean automaticDisplay;
 	private Integer updateInterval;
 	// Constant
@@ -83,7 +84,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 
 		// Try to init the system now (almost same code that in PlayerJoinEvent
 		// except the scheduler) because there may be online player
-		if (serversList.isEmpty() || (serverIndicator && currentServer == null)) {
+		if (serversList.isEmpty() || (serverIndicatorEnabled && currentServer == null)) {
 			try {
 				final Player p = Bukkit.getOnlinePlayers()[0];
 				if (p == null) {
@@ -97,7 +98,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					out.writeUTF("GetServers");
 					plugMessage.add(b.toByteArray());
 				}
-				if (serverIndicator && currentServer == null) {
+				if (serverIndicatorEnabled && currentServer == null) {
 					b = new ByteArrayOutputStream();
 					out = new DataOutputStream(b);
 					out.writeUTF("GetServer");
@@ -138,11 +139,18 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 			reloadConfig();
 			getConfig().set("name", networkName + "  &7&L(%totalplayercount%)");
 			getConfig().set("enableServerIndicator", serverIndicator);
-		} else if (!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("datasource")) {
+		}
+		if (!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("datasource")) {
 			getLogger().info("Config file's update in progress ...");
 			getConfig().set("datasource", "default");
-		} else if (!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("offlinePrefix")) {
+		}
+		if (!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("offlinePrefix")) {
 			getConfig().set("offlinePrefix", "&c[OFFLINE]");
+		}
+		if (!YamlConfiguration.loadConfiguration(new File(getDataFolder(), "config.yml")).contains("onlinePrefix")) {
+			getConfig().set("onlinePrefix", "&a[ON]");
+			getConfig().set("serverIndicator", "&a>");
+			getConfig().set("proxyIP", "127.0.0.1:25577");
 		}
 		
 		// Update the header
@@ -154,9 +162,37 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 	public void loadConfig() {
 		// Get some config vars
 		networkName = ChatColor.translateAlternateColorCodes('&', "&n" + getConfig().getString("name"));
-		serverIndicator = getConfig().getBoolean("enableServerIndicator");
+		serverIndicatorEnabled = getConfig().getBoolean("enableServerIndicator");
+		if(serverIndicatorEnabled){
+			serverIndicator = getConfig().getString("serverIndicator");
+		}
 		automaticDisplay = getConfig().getBoolean("automaticDisplay");
 		updateInterval = getConfig().getInt("interval");
+		if(!getConfig().getString("proxyIP").isEmpty()){
+			final InetSocketAddress proxyAddress;
+			if(!getConfig().getString("proxyIP").isEmpty()){
+				final String strProxyIP = getConfig().getString("proxyIP").replace("localhost", "127.0.0.1");
+				if(strProxyIP.matches(ipAddressRegex)){
+					String[] addressArray = getConfig().getString("proxyIP").split(":");
+					try {
+						proxyAddress = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));	
+						Bukkit.getScheduler().runTaskTimerAsynchronously(this, new Runnable() {
+							@Override
+							public void run() {
+								final Ping ping = new Ping("bungee", proxyAddress);
+								ping.run();
+								maxPlayers = ping.getMaxPlayers();
+							}
+						}, 20L, 20L * BPC.getInstance().getUpdateInterval());
+					} catch (NumberFormatException | UnknownHostException e) {
+						getLogger().warning("The adress of the bungee proxy is not correct.");
+						e.printStackTrace();
+					}
+				}else{
+					getLogger().warning("The adress of the bungee proxy is not correct.");
+				}
+			}
+		}
 		switch (getConfig().getString("datasource")) {
 		case "default":
 			channel = "BungeeCord";
@@ -207,7 +243,8 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					List<String> servers = Arrays.asList(groupConfig.getString("servers").split("\\+"));
 					InetSocketAddress address = null;
 					// Parse the address
-					if(!"".equals(groupConfig.getString("address"))){
+					if(!groupConfig.getString("address").isEmpty()){
+						final String strAddress = groupConfig.getString("address").replace("localhost", "127.0.0.1");
 						if(groupConfig.getString("address").matches(ipAddressRegex)){
 							String[] addressArray = groupConfig.getString("address").split(":");
 							try {
@@ -248,8 +285,8 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 
 	public void initScoreboard() {
 		SB = Bukkit.getScoreboardManager().getMainScoreboard();
-		for (final OfflinePlayer offlineP : SB.getPlayers()) {
-			SB.resetScores(offlineP);
+		for (final String entries : SB.getEntries()) {
+			SB.resetScores(entries);
 		}
 		if (SB.getObjective("playercounter") != null) {
 			SB.getObjective("playercounter").unregister();
@@ -257,14 +294,29 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 		if(SB.getTeam("offline") != null){
 			SB.getTeam("offline").unregister();
 		}
+		if(SB.getTeam("online") != null){
+			SB.getTeam("online").unregister();
+		}
 		Objective objective = SB.registerNewObjective("playercounter", "dummy");
 		objective.setDisplaySlot(DisplaySlot.SIDEBAR);
+		
+		// Online and offline stuff
 		String offlinePrefix = getConfig().getString("offlinePrefix");
-		if(offlinePrefix.length() > 16){
-			offlinePrefix = offlinePrefix.substring(0, 16);
-			getLogger().warning("The offlinePrefix length is bigger than 16 chars...");
+		if(!offlinePrefix.isEmpty()){
+			if(offlinePrefix.length() > 16){
+				offlinePrefix = offlinePrefix.substring(0, 16);
+				getLogger().warning("The offlinePrefix length is bigger than 16 chars...");
+			}
+			SB.registerNewTeam("offline").setPrefix(ChatColor.translateAlternateColorCodes('&', offlinePrefix));
 		}
-		SB.registerNewTeam("offline").setPrefix(ChatColor.translateAlternateColorCodes('&', offlinePrefix));
+		String onlinePrefix = getConfig().getString("onlinePrefix");
+		if(!onlinePrefix.isEmpty()){
+			if(onlinePrefix.length() > 16){
+				onlinePrefix = onlinePrefix.substring(0, 16);
+				getLogger().warning("The onlinePrefix length is bigger than 16 chars...");
+			}
+			SB.registerNewTeam("online").setPrefix(ChatColor.translateAlternateColorCodes('&', onlinePrefix));
+		}
 	}
 
 	public void updateSB() {
@@ -340,8 +392,8 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 
 				// Total player count
 				if (server.equals("ALL")) {
-					String objectiveName = ChatColor.translateAlternateColorCodes('&', networkName).replaceAll(
-							"%totalplayercount%", String.valueOf(playerCount));
+					String objectiveName = ChatColor.translateAlternateColorCodes('&', networkName).replace(
+							"%totalplayercount%", String.valueOf(playerCount)).replace("%maxplayers%", String.valueOf(maxPlayers));
 					if (objectiveName.length() > 32)
 						objectiveName = objectiveName.substring(0, 32);
 					SB.getObjective(DisplaySlot.SIDEBAR).setDisplayName(objectiveName);
@@ -353,39 +405,40 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					// If the currentServer is not defined, it can cause
 					// duplicate scoreboard entry so we cancel until we've got
 					// the currentServer
-					if (serverIndicator && currentServer == null)
+					if (serverIndicatorEnabled && currentServer == null)
 						return;
 
 					// If this is the current server player count and the server
 					// indicator is on, show the server indicator
-					if (server.equals(currentServer) && serverIndicator) {
-						if (server.length() > 9)
-							server = server.substring(0, 9);
-						server = ChatColor.GREEN + ">" + server + ChatColor.RED + ":";
-
+					if (server.equals(currentServer) && serverIndicatorEnabled) {
+						server = ChatColor.translateAlternateColorCodes('&', serverIndicator + server + ChatColor.RED + ":");
+						server = (server.length() > 16) ? server.substring(0, 16) : server;
+						
 						// Avoid having more than 15 entry in the SB which makes
 						// it crash
-						if (SB.getPlayers().size() < 15) {
+						if (SB.getEntries().size() < 15) {
 							// Note: if the score of a player is set to 0, it will not be shown each time, 
 							// so we need to force it setting it to any non null number
 							if(playerCount == 0){
-								SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(server))
+								SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 								.setScore(-1);
 							}
-							SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(server))
+							SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 									.setScore(playerCount);
 						}
 					}
 
 					// Else just show player count of the server
 					else {
-						if (server.length() > 12)
-							server = server.substring(0, 13);
+						server = ChatColor.translateAlternateColorCodes('&', server + ChatColor.RED + ":");
+						server = (server.length() > 16) ? server.substring(0, 16) : server;
 
-						server = server + ChatColor.RED + ":";
-
-						if (SB.getPlayers().size() < 15) {
-							SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(server))
+						if (SB.getEntries().size() < 15) {
+							if(playerCount == 0){
+								SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
+								.setScore(-1);
+							}
+							SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 									.setScore(playerCount);
 						}
 					}
@@ -400,50 +453,53 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					// Get group and update player count
 					Group group = serversGroups.get(server);
 					group.updatePlayerCount(server, playerCount);
-
-					String name;
 					
 					// If the server is in the same group as currentServer zzand
 					// the server indicator is on, show the server indicator
-					if (group.equals(currentGroup) && serverIndicator) {
-
-						// Handle displayname: truncate it if too big and then
-						// set it in the scoreboard
-						name = group.getName();
-						name = ChatColor.GREEN + ">" + name;
-						if (name.length() > 16)
-							name = name.substring(0, 16);
+					if (group.equals(currentGroup) && serverIndicatorEnabled) {
+						server = ChatColor.translateAlternateColorCodes('&', serverIndicator + group.getName());
+						server = (server.length() > 16) ? server.substring(0, 16) : server;
 
 						// Sometimes the current group shows without the special
 						// mark, so we gonna remove it
-						SB.resetScores(Bukkit.getOfflinePlayer(group.getName()));
+						SB.resetScores(group.getName());
 
-						if (SB.getPlayers().size() < 15) {
-							SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(name))
+						if (SB.getEntries().size() < 15) {
+							SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 									.setScore(group.getPlayerCount());
 						}
 					}
 
 					// Else just show player count of the server
 					else {
-						name = group.getName();
-						if (SB.getPlayers().size() < 15) {
+						server = group.getName();
+						if (SB.getEntries().size() < 15) {
 							// Note: if the score of a player is set to 0, it will not be shown each time, 
 							// so we need to force it setting it to any non null number
 							if(group.getPlayerCount() == 0){
-								SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(name))
+								SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 								.setScore(-1);
 							}
-							SB.getObjective(DisplaySlot.SIDEBAR).getScore(Bukkit.getOfflinePlayer(name))
+							SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 									.setScore(group.getPlayerCount());
 						}
 						
 						// Assign offline or online state
 						if(!group.isOnline()){
-							SB.getTeam("offline").addPlayer(Bukkit.getOfflinePlayer(name));
+							if(SB.getTeam("offline") != null){
+								SB.getTeam("offline").addEntry(server);
+							}
+							if(SB.getTeam("online") != null){
+								SB.getTeam("online").removeEntry(server);
+							}
 						}
 						else{
-							SB.getTeam("offline").removePlayer(Bukkit.getOfflinePlayer(name));
+							if(SB.getTeam("offline") != null){
+								SB.getTeam("offline").removeEntry(server);
+							}
+							if(SB.getTeam("online") != null){
+								SB.getTeam("online").addEntry(server);
+							}
 						}
 					}
 				}
@@ -472,7 +528,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 	public void onPlayerJoin(final PlayerJoinEvent e) {
 		// If the serversList is not initialized, we send the plugin message to
 		// init it
-		if (serversList.isEmpty() || (serverIndicator && currentServer == null)) {
+		if (serversList.isEmpty() || (serverIndicatorEnabled && currentServer == null)) {
 			try {
 				final Player p = e.getPlayer();
 				if (p == null) {
@@ -487,7 +543,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					out.writeUTF("GetServers");
 					plugMessage.add(b.toByteArray());
 				}
-				if (serverIndicator && currentServer == null) {
+				if (serverIndicatorEnabled && currentServer == null) {
 					b = new ByteArrayOutputStream();
 					out = new DataOutputStream(b);
 					out.writeUTF("GetServer");

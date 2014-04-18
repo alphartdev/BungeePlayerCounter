@@ -4,7 +4,8 @@
 # ----------------------------------------
 # <!> Coloured names are supported but you must put your text in quote !
 # Configuration :
-# name: name displayed at the top of the scoreboard (%totalplayercount% will be replaced by the total player count in your bungee instance)
+# name: name displayed at the top of the scoreboard (%totalplayercount% will be replaced by the total player count in your bungee instance and to use %maxplayers%
+# you need to specify your proxyIP
 # enableServerIndicator: enable the highlight of your current server
 # interval: interval between player count update in seconds
 # automaticDisplay: automatically display all servers of Bungee (16 servers max), in opposition with manual display
@@ -17,7 +18,10 @@
 #     address: address used to check the state of the server, set to "" to disable it
 # datasource: source used to get player count : "default" or "redis" || Let default value if you don't know or don't use Redis
 # offlinePrefix: string that will prefix the server name when it's offline (16 chars max) <!>Status checking ONLY works with manualdisplay<!>
-name: "&6NameOfNetwork &7&L(%totalplayercount%)"
+# onlinePrefix: string that will prefix the server name when it's online (16 chars max) <!>Status checking ONLY works with manualdisplay<!>
+# serverIndicator: string that will prefix the current server if the server indicator is enabled
+# proxyIP: If you want to use %maxplayers% into your scoreboard name, you need to specify your proxyIP. Set to "" to disable this feature.
+name: "&6NameOfNetwork &7&L(%totalplayercount%/%maxplayers%)"
 enableServerIndicator: true
 interval: 5
 automaticDisplay: true
@@ -32,3 +36,6 @@ groups:
         display: true
 datasource: default
 offlinePrefix: "&c[OFFLINE]"
+onlinePrefix: "&a[ON]"
+serverIndicator: "&a>"
+proxyIP: "127.0.0.1:25577"
