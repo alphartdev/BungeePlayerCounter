@@ -111,94 +111,113 @@ public class Group {
 			}
 		}
 
-		private int readVarInt(DataInputStream in) throws IOException {
-			int i = 0;
-			int j = 0;
-			while (true) {
-				int k = in.readByte();
-				i |= (k & 0x7F) << j++ * 7;
-				if (j > 5)
-					throw new RuntimeException("VarInt too big");
-				if ((k & 0x80) != 128)
-					break;
-			}
-			return i;
-		}
+        private void ping() throws IOException {
+            try (Socket socket = new Socket()) {
+                socket.setSoTimeout(1000);
+                socket.connect(address);
+                OutputStream outputStream;
+                DataOutputStream dataOutputStream;
+                DataInputStream inputStream;
+                InputStreamReader inputStreamReader;
 
-		private void writeVarInt(DataOutputStream out, int paramInt) throws IOException {
-			while (true) {
-				if ((paramInt & 0xFFFFFF80) == 0) {
-					out.writeByte(paramInt);
-					return;
-				}
+                outputStream = socket.getOutputStream();
+                dataOutputStream = new DataOutputStream(outputStream);
 
-				out.writeByte(paramInt & 0x7F | 0x80);
-				paramInt >>>= 7;
-			}
-		}
+                inputStream = new DataInputStream(socket.getInputStream());
+                inputStreamReader = new InputStreamReader(inputStream);
 
-		private void ping() throws IOException {
-			Socket socket = null;
-			try {
-				socket = new Socket();
-				socket.setSoTimeout(1000);
-				socket.connect(address);
-				OutputStream outputStream;
-				DataOutputStream dataOutputStream;
-				InputStream inputStream;
-				InputStreamReader inputStreamReader;
+                // Realize the handshake
+                ByteArrayOutputStream frame = new ByteArrayOutputStream();
+                DataOutputStream frameOut = new DataOutputStream(frame);
 
-				outputStream = socket.getOutputStream();
-				dataOutputStream = new DataOutputStream(outputStream);
+                // Handshake
+                writeVarInt(0x00, frameOut);
+                writeVarInt(4, frameOut);
+                writeString(address.getHostName(), frameOut);
+                frameOut.writeShort(address.getPort());
+                writeVarInt(1, frameOut);
+                // Write handshake
+                writeVarInt(frame.size(), dataOutputStream);
+                frame.writeTo(dataOutputStream);
+                frame.reset();
 
-				inputStream = socket.getInputStream();
-				inputStreamReader = new InputStreamReader(inputStream);
+                // Ping
+                writeVarInt(0x00, frameOut);
+                // Write ping
+                writeVarInt(frame.size(), dataOutputStream);
+                frame.writeTo(dataOutputStream);
+                frame.reset();
 
-				// Realize the handshake
-				ByteArrayOutputStream b = new ByteArrayOutputStream();
-				DataOutputStream handshake = new DataOutputStream(b);
-				handshake.writeByte(0x00);
-				writeVarInt(handshake, 4);
-				writeVarInt(handshake, address.getHostString().length());
-				handshake.writeBytes(address.getHostString());
-				handshake.writeShort(address.getPort());
-				writeVarInt(handshake, 1);
+                int len = readVarInt(inputStream);
+                byte[] packet = new byte[len];
+                inputStream.readFully(packet);
 
-				writeVarInt(dataOutputStream, b.size());
-				dataOutputStream.write(b.toByteArray());
+                try (ByteArrayInputStream inPacket = new ByteArrayInputStream(packet)) {
+                    try (DataInputStream inFrame = new DataInputStream(inPacket)) {
+                        int id = readVarInt(inFrame);
+                        if (id != 0x00) {
+                            online = false;
+                        } else {
+                            online = true;
+                        }
+                    }
+                }
 
-				dataOutputStream.writeByte(0x01); // 0x01 is ping packet id
-				dataOutputStream.writeByte(0x00);
-				DataInputStream dataInputStream = new DataInputStream(inputStream);
-				int id = readVarInt(dataInputStream);
-				
-				if (id == -1) {
-					throw new IOException("End of stream.");
-				}
-				if (id != 0x00) {
-					throw new IOException("Invalid packetID");
-				}
-				
-				int length = readVarInt(dataInputStream);
-				if (length == -1) {
-					throw new IOException("End of stream.");
-				}
-				if (length == 0) {
-					throw new IOException("Invalid string length.");
-				}
+                dataOutputStream.close();
+                outputStream.close();
+                inputStreamReader.close();
+                inputStream.close();
+                socket.close();
+            } catch (final IOException e) {
+                online = false;
+                throw e;
+            }
+        }
+    }
 
-				dataOutputStream.close();
-				outputStream.close();
-				inputStreamReader.close();
-				inputStream.close();
-				socket.close();
-				online = true;
-			} catch (final IOException e) {
-				online = false;
-				throw e;
-			} finally {
-				socket.close();
-			}
-		}
-	}
+    public static void writeString(String s, DataOutput out) throws IOException {
+        // TODO: Check len - use Guava?
+        byte[] b = s.getBytes("UTF-8");
+        writeVarInt(b.length, out);
+        out.write(b);
+    }
+
+    public static int readVarInt(DataInput input) throws IOException {
+        int out = 0;
+        int bytes = 0;
+        byte in;
+        while (true) {
+            in = input.readByte();
+
+            out |= (in & 0x7F) << (bytes++ * 7);
+
+            if (bytes > 32) {
+                throw new RuntimeException("VarInt too big");
+            }
+
+            if ((in & 0x80) != 0x80) {
+                break;
+            }
+        }
+
+        return out;
+    }
+
+    public static void writeVarInt(int value, DataOutput output) throws IOException {
+        int part;
+        while (true) {
+            part = value & 0x7F;
+
+            value >>>= 7;
+            if (value != 0) {
+                part |= 0x80;
+            }
+
+            output.writeByte(part);
+
+            if (value == 0) {
+                break;
+            }
+        }
+    }
 }
