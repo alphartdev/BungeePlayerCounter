@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -222,14 +223,14 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 			Set<String> groupsList = getConfig().getConfigurationSection("groups").getKeys(false);
 			for (String groupName : groupsList) {
 				Integer groupNB = (new HashSet<Group>(serversGroups.values())).size();
-				// If there is more than 15 entry, the SB will crash so we stop
+				// If there is more than 14 entry, the SB will bug so we stop
 				// the loading here
 				// Note : Use an HashSet to avoid counting duplicate value (same
 				// group for different servers)
 				if (groupNB > 14) {
 					getLogger()
 							.warning(
-									"You've set more than 15 groups config. Only 15 groups have been loaded to avoid SB crashing. Set 15 groups or less in your config to disable this message.");
+									"You've set more than 14 groups config. Only 14 groups have been loaded to avoid SB being buggy. Set 14 groups or less in your config to disable this message.");
 					return;
 				}
 				ConfigurationSection groupConfig = getConfig().getConfigurationSection("groups." + groupName);
@@ -416,7 +417,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 						
 						// Avoid having more than 15 entry in the SB which makes
 						// it crash
-						if (SB.getEntries().size() < 15) {
+						if (SB.getEntries().size() < 14) {
 							// Note: if the score of a player is set to 0, it will not be shown each time, 
 							// so we need to force it setting it to any non null number
 							if(playerCount == 0){
@@ -433,7 +434,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 						server = ChatColor.translateAlternateColorCodes('&', server + ChatColor.RED + ":");
 						server = (server.length() > 16) ? server.substring(0, 16) : server;
 
-						if (SB.getEntries().size() < 15) {
+						if (SB.getEntries().size() < 14) {
 							if(playerCount == 0){
 								SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 								.setScore(-1);
@@ -464,7 +465,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 						// mark, so we gonna remove it
 						SB.resetScores(group.getName());
 
-						if (SB.getEntries().size() < 15) {
+						if (SB.getEntries().size() < 14) {
 							SB.getObjective(DisplaySlot.SIDEBAR).getScore(server)
 									.setScore(group.getPlayerCount());
 						}
@@ -473,7 +474,7 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					// Else just show player count of the server
 					else {
 						server = group.getName();
-						if (SB.getEntries().size() < 15) {
+						if (SB.getEntries().size() < 14) {
 							// Note: if the score of a player is set to 0, it will not be shown each time, 
 							// so we need to force it setting it to any non null number
 							if(group.getPlayerCount() == 0){
@@ -517,6 +518,9 @@ public class BPC extends JavaPlugin implements PluginMessageListener, Listener, 
 					currentGroup = serversGroups.get(currentServer);
 			}
 		} catch (IOException e) {
+		    if(e instanceof EOFException){
+		        return;
+		    }
 			getLogger().severe(
 					"Error during reception of plugin message! Cause: IOException\nPlease report this stacktrace :");
 			e.printStackTrace();
