@@ -1,22 +1,28 @@
-package fr.Alphart.BungeePlayerCounter;
+package fr.Alphart.BungeePlayerCounter.Servers;
 
 import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import lombok.Getter;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+
+import fr.Alphart.BungeePlayerCounter.BPC;
 
 /**
  * This class is used to handle groups when manual display is enabled
  */
-public class Group {
+@Getter
+public class ServerGroup {
+    @Getter
 	private String displayName;
-	// ServersPlayerCount: contains player count of each server's group
+    @Getter
+    private int playerCount;
 	private Map<String, Integer> serversPC;
-	private Integer playerCount;
-	private Ping ping = null;
+	private Pinger ping = null;
 	private InetSocketAddress address = null;
 
 	/**
@@ -25,7 +31,7 @@ public class Group {
 	 * @param displayName
 	 * @param servers
 	 */
-	public Group(String name, List<String> servers) {
+	public ServerGroup(String name, List<String> servers) {
 		displayName = ChatColor.translateAlternateColorCodes('&', name);
 		if (displayName.length() > 16)
 			displayName = displayName.substring(0, 16);
@@ -35,7 +41,7 @@ public class Group {
 		}
 	}
 
-	public Group(String name, List<String> servers, InetSocketAddress address, BPC plugin) {
+	public ServerGroup(String name, List<String> servers, InetSocketAddress address, int updateInterval) {
 		displayName = ChatColor.translateAlternateColorCodes('&', name);
 		if (displayName.length() > 16)
 			displayName = displayName.substring(0, 16);
@@ -44,13 +50,13 @@ public class Group {
 			serversPC.put(serverName, 0);
 		}
 		this.address = address;
-		ping = new Ping(name, address);
-		Bukkit.getScheduler()
-				.runTaskTimerAsynchronously(plugin, ping, 20L, 20L * BPC.getInstance().getUpdateInterval());
+		ping = new Pinger(name, address);
+		Bukkit.getScheduler().runTaskTimerAsynchronously(BPC.getInstance(), ping, 20L, 
+                20L * updateInterval);
 	}
 
 	private void calculatePlayerCount() {
-		Integer totalPC = 0;
+		int totalPC = 0;
 		for (Integer serverPC : serversPC.values()) {
 			totalPC += serverPC;
 		}
@@ -70,15 +76,22 @@ public class Group {
 		calculatePlayerCount();
 	}
 
-	public String getName() {
-		return displayName;
-	}
-
-	public Integer getPlayerCount() {
-		return playerCount;
-	}
-
 	public boolean isOnline() {
-		return (ping != null) ? ping.isOnline() : true;
+	    if(ping == null){
+	        throw new IllegalStateException("This server group has no defined address and its current stat cannot be computed.");
+	    }
+		return ping.isOnline();
+	}
+	
+	public boolean isAdressSet(){
+	    return address != null;
+	}
+	
+	/**
+	 * Check if this group contain the current server
+	 * (server where the plugin is running now)
+	 */
+	public boolean doesContainCurrentServer(){
+	    return serversPC.containsKey(BPC.getInstance().getServerCoordinator().getCurrentServer());
 	}
 }

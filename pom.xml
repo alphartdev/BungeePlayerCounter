@@ -3,11 +3,11 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>fr.Alphart</groupId>
 	<artifactId>BungeePlayerCounter</artifactId>
-	<version>1.4</version>
+	<version>1.5</version>
 	<name>BungeePlayerCounter</name>
 
 	<properties>
-		<minecraft.version>1.7.9-R0.3-SNAPSHOT</minecraft.version>
+		<minecraft.version>1.8.3-R0.1-SNAPSHOT</minecraft.version>
 	</properties>
 
 	<repositories>
@@ -20,10 +20,15 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.spigotmc</groupId>
-			<artifactId>spigot</artifactId>
+			<artifactId>spigot-api</artifactId>
 			<version>${minecraft.version}</version>
 			<type>jar</type>
 			<scope>compile</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>1.12.4</version>
 		</dependency>
 	</dependencies>
 
