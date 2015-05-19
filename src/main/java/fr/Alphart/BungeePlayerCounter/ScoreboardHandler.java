@@ -98,12 +98,12 @@ public class ScoreboardHandler {
                     line = BPC.getInstance().getConf().getServerIndicator() + line;
                 }
                 
+                if(line.length() > 16){
+                    line = line.substring(0, 16);
+                }
                 // Apply score to scoreboard
                 if(playercount == 0){ // For null score, the scoreboard may be buggy, so we set an "intermediar" value
                     obj.getScore(line).setScore(-1);
-                }
-                if(line.length() > 16){
-                    line = line.substring(0, 16);
                 }
                 obj.getScore(line).setScore(playercount);
                 
