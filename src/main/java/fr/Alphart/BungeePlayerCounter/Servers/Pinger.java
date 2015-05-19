@@ -22,6 +22,7 @@ import java.util.List;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 import com.google.gson.Gson;
 
@@ -65,6 +66,7 @@ public class Pinger implements Runnable {
 		    final PingResponse response = ping(address, 1000);
 		    online = true;
 		    maxPlayers = response.getPlayers().getMax();
+		    BPC.debug("Successfully pinged " + parentGroupName + " group, result : " + response);
 		} catch (IOException e) {
 			if (!(e instanceof ConnectException) && !(e instanceof SocketTimeoutException)) {
 			    BPC.severe("An unexcepted error occured while pinging " + parentGroupName + " server", e);
@@ -113,7 +115,7 @@ public class Pinger implements Runnable {
                 throw new IOException("Premature end of stream.");
             }
             if (id != 0x00) {
-                throw new IOException("Invalid packetID");
+                throw new IOException(String.format("Invalid packetID. Expecting %d got %d", 0x00, id));
             }
             int length = dataInputStream.readVarInt();
             if (length == -1) {
@@ -142,7 +144,7 @@ public class Pinger implements Runnable {
                 throw new IOException("Premature end of stream.");
             }
             if (id != 0x01) {
-                throw new IOException("Invalid packetID");
+                throw new IOException(String.format("Invalid packetID. Expecting %d got %d", 0x01, id));
             }
             long pingtime = dataInputStream.readLong();
     
@@ -222,6 +224,7 @@ public class Pinger implements Runnable {
     }
     
     @Getter
+    @ToString
     public class PingResponse {
         private String description;
         private Players players;
@@ -235,6 +238,7 @@ public class Pinger implements Runnable {
         }
         
         @Getter
+        @ToString
         public class Players {
             private int max;
             private int online;
@@ -249,6 +253,7 @@ public class Pinger implements Runnable {
         }
         
         @Getter
+        @ToString
         public class Version {
             private String name;
             private String protocol;
