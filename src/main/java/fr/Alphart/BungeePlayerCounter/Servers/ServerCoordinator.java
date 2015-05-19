@@ -28,8 +28,11 @@ public class ServerCoordinator {
         new PluginMessageReader(this, BPC.getInstance().getConf().getPluginMessageChannel());
         Bukkit.getScheduler().runTaskTimer(BPC.getInstance(), new UpdatePlayerCountTask(), 20L, 
                 20L * BPC.getInstance().getConf().getUpdateInterval());
-        Bukkit.getScheduler().runTaskTimerAsynchronously(BPC.getInstance(), new UpdateProxyPlayerCountTask(), 20L, 
-                20L * BPC.getInstance().getConf().getUpdateInterval());
+        
+        if(BPC.getInstance().getConf().getProxyAddress() != null){
+            Bukkit.getScheduler().runTaskTimerAsynchronously(BPC.getInstance(), new UpdateProxyPlayerCountTask(), 20L, 
+                    20L * BPC.getInstance().getConf().getUpdateInterval());
+        }
         
         // This entry is for the global player count
         serverGroups.put("ALL", new ServerGroup(globalGroupName, Arrays.asList("ALL")));
