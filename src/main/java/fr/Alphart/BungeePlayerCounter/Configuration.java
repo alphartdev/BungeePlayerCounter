@@ -29,9 +29,6 @@ import fr.Alphart.BungeePlayerCounter.Servers.ServerGroup;
 public class Configuration {
     @Getter(value = AccessLevel.NONE)
     private final FileConfiguration config;
-    @Getter(value = AccessLevel.NONE)
-    private final String ipAddressRegex = "^([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\.([01]?\\d\\d?|2[0-4]\\d|25[0-5])"
-            + "\\.([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\.([01]?\\d\\d?|2[0-4]\\d|25[0-5]):\\d{1,5}$";
     
     public Configuration(final FileConfiguration config){
         this.config = config;
@@ -117,14 +114,10 @@ public class Configuration {
         if(!config.getString("proxyIP").isEmpty()){
             final String strProxyIP = config.getString("proxyIP").replace("localhost", "127.0.0.1");
             try{
-                if(strProxyIP.matches(ipAddressRegex)){
-                    String[] addressArray = config.getString("proxyIP").split(":");
-                    proxyAddress = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));    
-                }else{
-                    throw new UnknownHostException(ipAddressRegex);
-                }
-            } catch (final NumberFormatException | UnknownHostException e) {
-                bpcLogger.log(Level.WARNING, "The adress of the bungee proxy is not correct.", e);
+                String[] addressArray = strProxyIP.split(":");
+                proxyAddress = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));
+            } catch (final IllegalArgumentException | UnknownHostException e) {
+                bpcLogger.log(Level.WARNING, "The address of the bungee proxy is not correct.", e);
             }
         }
         
@@ -167,15 +160,11 @@ public class Configuration {
                     // Parse the address
                     if(!groupConfig.getString("address").isEmpty()){
                         final String strAddress = groupConfig.getString("address").replace("localhost", "127.0.0.1");
-                        if(strAddress.matches(ipAddressRegex)){
-                            String[] addressArray = strAddress.split(":");
-                            try {
-                                address = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));
-                            } catch (NumberFormatException | UnknownHostException e) {
-                                e.printStackTrace();
-                            }
-                        }else{
-                            bpcLogger.warning("The adress of the group " + groupName + " is not correct.");
+                        String[] addressArray = strAddress.split(":");
+                        try {
+                            address = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));
+                        } catch (IllegalArgumentException | UnknownHostException e) {
+                            bpcLogger.log(Level.WARNING, "The address of the group " + groupName + " is not correct.", e);
                         }
                     }
 
