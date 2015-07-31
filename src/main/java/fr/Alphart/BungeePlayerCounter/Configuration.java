@@ -116,8 +116,8 @@ public class Configuration {
             try{
                 String[] addressArray = strProxyIP.split(":");
                 proxyAddress = new InetSocketAddress(InetAddress.getByName(addressArray[0]), Integer.parseInt(addressArray[1]));
-            } catch (final IllegalArgumentException | UnknownHostException e) {
-                bpcLogger.log(Level.WARNING, "The address of the bungee proxy is not correct.", e);
+            } catch (final IllegalArgumentException | UnknownHostException | ArrayIndexOutOfBoundsException e) {
+                bpcLogger.log(Level.WARNING, "The address of the bungee proxy is not correct. It must have the following format: 'ip:port'", e);
             }
         }
         
