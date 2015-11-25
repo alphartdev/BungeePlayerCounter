@@ -14,7 +14,7 @@ public class BaseCommands implements CommandExecutor{
     public final static String DISPLAY_PERM = "bungeeplayercounter.display";
     public final static String RELOAD_PERM = "bungeeplayercounter.reload";
     public final static String TOGGLE_PERM = "bungeeplayercounter.toggle";
-    public final static String DEBUG_PERM = "bungeeplayercounter.display";
+    public final static String DEBUG_PERM = "bungeeplayercounter.debug";
     
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
