@@ -20,6 +20,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 import java.util.List;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
@@ -27,6 +28,8 @@ import lombok.ToString;
 import com.google.gson.Gson;
 
 import fr.Alphart.BungeePlayerCounter.BPC;
+import fr.Alphart.BungeePlayerCounter.Servers.Pinger.PingResponse.Players;
+import fr.Alphart.BungeePlayerCounter.Servers.Pinger.PingResponse.Version;
 import fr.Alphart.BungeePlayerCounter.Servers.Pinger.VarIntStreams.VarIntDataInputStream;
 import fr.Alphart.BungeePlayerCounter.Servers.Pinger.VarIntStreams.VarIntDataOutputStream;
 
@@ -149,14 +152,24 @@ public class Pinger implements Runnable {
             long pingtime = dataInputStream.readLong();
     
             synchronized (gson) {
-                final PingResponse response = gson.fromJson(json, PingResponse.class);
-                response.setTime((int) (now - pingtime));
-                dataOutputStream.close();
-                outputStream.close();
-                inputStreamReader.close();
-                inputStream.close();
-                socket.close();
-                return response;
+              PingResponse response = null;
+              final PingResponseVersionFetcher versionFetcher = gson.fromJson(json, PingResponseVersionFetcher.class);
+              if(Integer.parseInt(versionFetcher.version.protocol) > 47){
+                // Most likely 1.9
+                try{
+                  response = gson.fromJson(json, PingResponsev1_9.class).toLegacyPingResponse();
+                }catch(Exception e){}
+              }
+              if(response == null){
+                response = gson.fromJson(json, PingResponse.class);
+              }
+              response.setTime((int) (now - pingtime));
+              dataOutputStream.close();
+              outputStream.close();
+              inputStreamReader.close();
+              inputStream.close();
+              socket.close();
+              return response;
             }
         }catch(final IOException e){
             throw e;
@@ -223,8 +236,14 @@ public class Pinger implements Runnable {
         return null;
     }
     
+    public class PingResponseVersionFetcher{
+      private Version version;
+    }
+    
     @Getter
     @ToString
+    @AllArgsConstructor
+    /** Pingresponse of 1.8: description is still a string**/
     public class PingResponse {
         private String description;
         private Players players;
@@ -233,12 +252,18 @@ public class Pinger implements Runnable {
         @Setter
         private int time;
         
+        public String getDescription(){
+            if(description.endsWith(" ")){ // All mot every to end with a space for no reason so we gotta remove it
+                description = description.substring(0, description.length()-1);
+            }
+            return description;
+        }
+        
         public boolean isFull(){
             return players.max <= players.online;
         }
         
         @Getter
-        @ToString
         public class Players {
             private int max;
             private int online;
@@ -250,6 +275,11 @@ public class Pinger implements Runnable {
                 private String id;
 
             }
+            
+            @Override
+            public String toString() {
+                return String.format("Online: %d, Max: %d", online, max);
+            }
         }
         
         @Getter
@@ -258,6 +288,23 @@ public class Pinger implements Runnable {
             private String name;
             private String protocol;
         }
+    }
+
+    public class PingResponsev1_9{
+      private Description description;
+      private Players players;
+      private Version version;
+      private String favicon;
+      @Setter
+      private int time;
+      
+      public class Description{
+        String text;
+      }
+      
+      public PingResponse toLegacyPingResponse(){
+        return new PingResponse(description.text, players, version, favicon, time);
+      }
     }
     
     static class VarIntStreams {
